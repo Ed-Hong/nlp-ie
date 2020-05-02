@@ -4,10 +4,14 @@ import nltk
 import opennre
 from nltk.corpus import wordnet
 from util import processArgs, test
+from node import Node, Edge
 
 def testOpenNRE():
     model = opennre.get_model('wiki80_cnn_softmax')
-    print(model.infer({'text': 'He was the son of Máel Dúin mac Máele Fithrich, and grandson of the high king Áed Uaridnach (died 612).', 'h': {'pos': (18, 46)}, 't': {'pos': (78, 91)}}))
+    sentence = 'He was the son of Máel Dúin mac Máele Fithrich, and grandson of the high king Áed Uaridnach (died 612).'
+
+    print(sentence.find('Máel Dúin mac Máele Fithrich'))
+    print(model.infer({'text': sentence, 'h': {'pos': (18, 46)}, 't': {'pos': (78, 91)}}))
 
 def printParseTree(doc):
     for token in doc:
@@ -71,6 +75,71 @@ def testSpacy():
     for entity in doc.ents:
         print(entity.text, entity.label_)
 
+def bron_kerbosch():
+    A = Node('A')
+    B = Node('B')
+    C = Node('C')
+    D = Node('D')
+    E = Node('E')
+    F = Node('F')
+
+    A.neighbors = [B, C, E]
+    A.weightedEdges = [Edge(A, B, 1), Edge(A, C, 0.5), Edge(A, E, 0.5)]
+
+    B.neighbors = [A, C, D, F]
+    B.weightedEdges = [Edge(B, A, 0.5), Edge(B, C, 0.5), Edge(B, D, 0.5), Edge(B, F, 0.5)]
+    
+    C.neighbors = [A, B, D, F]
+    C.weightedEdges = [Edge(C, A, 0.5), Edge(C, C, 0.5), Edge(C, D, 0.5), Edge(C, F, 0.5)]
+
+    D.neighbors = [C, B, E, F]
+    D.weightedEdges = [Edge(D, C, 0.5), Edge(D, B, 0.5), Edge(D, E, 0.5), Edge(D, F, 0.5)]
+
+    E.neighbors = [A, D]
+    E.weightedEdges = [Edge(E, A, 0.5), Edge(E, D, 0.5)]
+
+    F.neighbors = [B, C, D]
+    F.weightedEdges = [Edge(F, B, 0.5), Edge(F, C, 0.5), Edge(F, D, 0.5)]
+
+    all_nodes = [A, B, C, D, E, F]
+
+    def find_cliques(potential_clique=[], remaining_nodes=[], skip_nodes=[], depth=0):
+        if len(remaining_nodes) == 0 and len(skip_nodes) == 0:
+            print('This is a clique: ', potential_clique)
+            print('clique weight: ', clique_weight(potential_clique))
+            return 1
+
+        found_cliques = 0
+        for node in remaining_nodes:
+            # Try adding the node to the current potential_clique to see if we can make it work.
+            new_potential_clique = potential_clique + [node]
+            new_remaining_nodes = [n for n in remaining_nodes if n in node.neighbors]
+            new_skip_list = [n for n in skip_nodes if n in node.neighbors]
+            found_cliques += find_cliques(new_potential_clique, new_remaining_nodes, new_skip_list, depth + 1)
+
+            # We're done considering this node.  If there was a way to form a clique with it, we
+            # already discovered its maximal clique in the recursive call above.  So, go ahead
+            # and remove it from the list of remaining nodes and add it to the skip list.
+            remaining_nodes.remove(node)
+            skip_nodes.append(node)
+
+        return found_cliques
+
+    def clique_weight(clique=[]):
+        product = 1
+        edges = 0
+
+        for node in clique:
+            for edge in node.weightedEdges:
+                product = product * edge.weight
+                edges = edges + 1
+
+        return pow(product, (1 / edges))
+                
+
+    total_cliques = find_cliques(remaining_nodes=all_nodes)
+    print('Total cliques found:', total_cliques)
+
 def main(argv):
     
     # testSpacy()
@@ -83,8 +152,11 @@ def main(argv):
 
     # testWordNet()
 
-    print("TESTING OPENNRE")
-    testOpenNRE()
+    # print("TESTING OPENNRE")
+    # testOpenNRE()
+
+    bron_kerbosch()
+    
 
 
 
