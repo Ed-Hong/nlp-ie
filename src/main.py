@@ -92,6 +92,18 @@ def testSpacy():
 
 def bron_kerbosch(nodesList):
     cliques = []
+
+    def clique_weight(clique=[]):
+        product = 1
+        edges = 0
+
+        for node in clique:
+            for edge in node.weightedEdges:
+                product = product * edge.weight
+                edges = edges + 1
+
+        return pow(product, (1 / edges))
+
     def find_cliques(potential_clique=[], remaining_nodes=[], skip_nodes=[], depth=0):
         if len(remaining_nodes) == 0 and len(skip_nodes) == 0:
             print('This is a clique: ', potential_clique)
@@ -120,39 +132,17 @@ def bron_kerbosch(nodesList):
 
         return found_cliques
 
-    def clique_weight(clique=[]):
-        product = 1
-        edges = 0
-
-        for node in clique:
-            for edge in node.weightedEdges:
-                product = product * edge.weight
-                edges = edges + 1
-
-        return pow(product, (1 / edges))
-                
-
     total_cliques = find_cliques(remaining_nodes=nodesList)
     print('Total cliques found:', total_cliques)
     return cliques
 
+# testSpacy()
+# printParseTree(doc)
+
+# print("TESTING NLTK")
+# nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
+# testWordNet()
 def main(argv):
-    
-    # testSpacy()
-
-    # test()
-    # printParseTree(doc)
-
-    # print("TESTING NLTK")
-    # nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
-
-    # testWordNet()
-
-    # print("TESTING OPENNRE")
-    # testOpenNRE()
-
-    #bron_kerbosch()
-
     if len(sys.argv) < 2:
         print("pass filename")
         sys.exit(2)
@@ -187,8 +177,8 @@ def main(argv):
                     n.neighbors.append(nodes[ent2.text])
                     n.addWeightedEdge(nodes[ent2.text], relation[0], relation[1])
 
-        print("Graph: ")
         # verifying graph
+        print("Graph: ")
         for key, val in nodes.items():
             print('Node:', key)
             for neighbor in val.neighbors:
@@ -226,10 +216,6 @@ def main(argv):
         # verifying template filling
         for work in workTemplates:
             print('Work:', work.person, work.org, work.title, work.location)
-
-
-
-
 
 if __name__ == '__main__':
     main(sys.argv[1:])
