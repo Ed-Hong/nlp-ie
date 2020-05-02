@@ -14,6 +14,17 @@ def testOpenNRE():
     print(sentence.find('Máel Dúin mac Máele Fithrich'))
     print(model.infer({'text': sentence, 'h': {'pos': (18, 46)}, 't': {'pos': (78, 91)}}))
 
+def nre(text, head, tail):
+    model = opennre.get_model('wiki80_bert_softmax')
+
+    hStart = text.find(head)
+    hEnd = hStart + len(head)
+
+    tStart = text.find(tail)
+    tEnd = tStart + len(tail)
+
+    print(model.infer({'text': text, 'h': {'pos': (hStart, hEnd)}, 't': {'pos': (tStart, tEnd)}}))
+
 def printParseTree(doc):
     for token in doc:
         print(token.text, token.dep_, token.head.text, token.head.pos_,
@@ -47,7 +58,6 @@ def testWordNet():
     print(wordnet.synset('atom.n.01').part_holonyms())
     print(wordnet.synset('hydrogen.n.01').substance_holonyms())
     print(wordnet.synset('cat.n.01').member_holonyms())
-
 
 def testSpacy():
     # Load English tokenizer, tagger, parser, NER and word vectors
@@ -161,14 +171,26 @@ def main(argv):
     if len(sys.argv) < 2:
         print("pass filename")
         sys.exit(2)
-
     print("loading " + argv[0])
-    texts = loadFile(argv[0])
+
+    # texts = loadFile(argv[0])
+    texts = ['Rami Eid is studying at Stony Brook University in New York']
 
     nlp = spacy.load("en_core_web_sm")
-    for doc in nlp.pipe(texts, disable=["tagger", "parser"]):
+    for idx, doc in enumerate(nlp.pipe(texts, disable=["tagger", "parser"])):
         # Do something with the doc here
-        print([(ent.text, ent.label_) for ent in doc.ents])
+        #print("Tokens:", [token.text for token in doc])
+        print("Named Entities:", [(ent.text, ent.label_) for ent in doc.ents])
+        print()
+
+
+        for ent1 in doc.ents:
+            for ent2 in doc.ents:
+                if ent1 != ent2:
+                    print(ent1, ent2, sep=" *** ")
+                    nre(texts[idx], ent1.text, ent2.text)
+                    print()
+            
 
 
 
