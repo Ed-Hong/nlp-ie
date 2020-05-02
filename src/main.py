@@ -3,9 +3,11 @@ import sys
 import spacy
 import nltk
 import opennre
+
 from nltk.corpus import wordnet
 from util import loadFile
 from node import Node, Edge
+from template import Buy, Work, Part
 
 def testOpenNRE():
     model = opennre.get_model('wiki80_cnn_softmax')
@@ -23,7 +25,9 @@ def nre(text, head, tail):
     tStart = text.find(tail)
     tEnd = tStart + len(tail)
 
-    print(model.infer({'text': text, 'h': {'pos': (hStart, hEnd)}, 't': {'pos': (tStart, tEnd)}}))
+    relation = model.infer({'text': text, 'h': {'pos': (hStart, hEnd)}, 't': {'pos': (tStart, tEnd)}})
+    print(relation)
+    return relation
 
 def printParseTree(doc):
     for token in doc:
@@ -86,38 +90,18 @@ def testSpacy():
     for entity in doc.ents:
         print(entity.text, entity.label_)
 
-def bron_kerbosch():
-    A = Node('A')
-    B = Node('B')
-    C = Node('C')
-    D = Node('D')
-    E = Node('E')
-    F = Node('F')
-
-    A.neighbors = [B, C, E]
-    A.weightedEdges = [Edge(A, B, 1), Edge(A, C, 0.5), Edge(A, E, 0.5)]
-
-    B.neighbors = [A, C, D, F]
-    B.weightedEdges = [Edge(B, A, 0.5), Edge(B, C, 0.5), Edge(B, D, 0.5), Edge(B, F, 0.5)]
-    
-    C.neighbors = [A, B, D, F]
-    C.weightedEdges = [Edge(C, A, 0.5), Edge(C, C, 0.5), Edge(C, D, 0.5), Edge(C, F, 0.5)]
-
-    D.neighbors = [C, B, E, F]
-    D.weightedEdges = [Edge(D, C, 0.5), Edge(D, B, 0.5), Edge(D, E, 0.5), Edge(D, F, 0.5)]
-
-    E.neighbors = [A, D]
-    E.weightedEdges = [Edge(E, A, 0.5), Edge(E, D, 0.5)]
-
-    F.neighbors = [B, C, D]
-    F.weightedEdges = [Edge(F, B, 0.5), Edge(F, C, 0.5), Edge(F, D, 0.5)]
-
-    all_nodes = [A, B, C, D, E, F]
-
+def bron_kerbosch(nodesList):
+    cliques = []
     def find_cliques(potential_clique=[], remaining_nodes=[], skip_nodes=[], depth=0):
         if len(remaining_nodes) == 0 and len(skip_nodes) == 0:
             print('This is a clique: ', potential_clique)
-            print('clique weight: ', clique_weight(potential_clique))
+
+            cliqueWeight = clique_weight(potential_clique)
+            print('clique weight: ', cliqueWeight)
+
+            if cliqueWeight > 0.50:
+                cliques.append(potential_clique)
+
             return 1
 
         found_cliques = 0
@@ -148,8 +132,9 @@ def bron_kerbosch():
         return pow(product, (1 / edges))
                 
 
-    total_cliques = find_cliques(remaining_nodes=all_nodes)
+    total_cliques = find_cliques(remaining_nodes=nodesList)
     print('Total cliques found:', total_cliques)
+    return cliques
 
 def main(argv):
     
@@ -183,14 +168,65 @@ def main(argv):
         print("Named Entities:", [(ent.text, ent.label_) for ent in doc.ents])
         print()
 
+        # build graph nodes: <key, value> = <Entity name, Node>
+        nodes = {}
+        for ent in doc.ents:
+            n = Node(ent)
+            nodes[ent.text] = n
 
         for ent1 in doc.ents:
+            n = nodes[ent1.text]
+
             for ent2 in doc.ents:
                 if ent1 != ent2:
                     print(ent1, ent2, sep=" *** ")
-                    nre(texts[idx], ent1.text, ent2.text)
+                    relation = nre(texts[idx], ent1.text, ent2.text)
                     print()
-            
+
+                    # build graph
+                    n.neighbors.append(nodes[ent2.text])
+                    n.addWeightedEdge(nodes[ent2.text], relation[0], relation[1])
+
+        print("Graph: ")
+        # verifying graph
+        for key, val in nodes.items():
+            print('Node:', key)
+            for neighbor in val.neighbors:
+                print('Neighbor:', neighbor)
+            for edge in val.weightedEdges:
+                print('Edge:', edge.src, edge.dst, edge.relation, edge.weight)
+
+        print("BRON-KERBOSCH")
+        # Find maximal cliques and clique weights
+        cliques = bron_kerbosch(list(nodes.values()))
+        print("cliques:",cliques)
+
+        # if the clique contains certain types of relations, then we fill them into the complex relation / template
+        workTemplates = []
+        for clique in cliques:
+            for node in clique:
+                for edge in node.weightedEdges:
+                    if edge.dst in clique:
+                        if edge.relation == 'work location':
+                            # make new WORK template
+                            work = Work()
+
+                            # fill in the PERSON field of the WORK template
+                            if edge.src.entity.label_ == 'PERSON':
+                                work.person = edge.src.name
+
+                            # other fields...
+
+                            workTemplates.append(work)
+
+
+                        # if edge.relation == 'headquarters location':
+                            # make new PART template
+
+        # verifying template filling
+        for work in workTemplates:
+            print('Work:', work.person, work.org, work.title, work.location)
+
 
 
 
