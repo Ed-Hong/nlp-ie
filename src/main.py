@@ -1,9 +1,10 @@
+import os
 import sys
 import spacy
 import nltk
 import opennre
 from nltk.corpus import wordnet
-from util import processArgs, test
+from util import loadFile
 from node import Node, Edge
 
 def testOpenNRE():
@@ -155,8 +156,19 @@ def main(argv):
     # print("TESTING OPENNRE")
     # testOpenNRE()
 
-    bron_kerbosch()
-    
+    #bron_kerbosch()
+
+    if len(sys.argv) < 2:
+        print("pass filename")
+        sys.exit(2)
+
+    print("loading " + argv[0])
+    texts = loadFile(argv[0])
+
+    nlp = spacy.load("en_core_web_sm")
+    for doc in nlp.pipe(texts, disable=["tagger", "parser"]):
+        # Do something with the doc here
+        print([(ent.text, ent.label_) for ent in doc.ents])
 
 
 
