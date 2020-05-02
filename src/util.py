@@ -1,4 +1,4 @@
-import sys,
+import sys, getopt
 
 def helpmsg():
     print('usage:   -n {1|2} -s {no|+1|gt}')

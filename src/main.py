@@ -1,8 +1,13 @@
 import sys
 import spacy
 import nltk
+import opennre
 from nltk.corpus import wordnet
 from util import processArgs, test
+
+def testOpenNRE():
+    model = opennre.get_model('wiki80_cnn_softmax')
+    print(model.infer({'text': 'He was the son of Máel Dúin mac Máele Fithrich, and grandson of the high king Áed Uaridnach (died 612).', 'h': {'pos': (18, 46)}, 't': {'pos': (78, 91)}}))
 
 def printParseTree(doc):
     for token in doc:
@@ -39,7 +44,7 @@ def testWordNet():
     print(wordnet.synset('cat.n.01').member_holonyms())
 
 
-def main(argv):
+def testSpacy():
     # Load English tokenizer, tagger, parser, NER and word vectors
     nlp = spacy.load("en_core_web_sm")
 
@@ -66,13 +71,21 @@ def main(argv):
     for entity in doc.ents:
         print(entity.text, entity.label_)
 
-    test()
-    printParseTree(doc)
+def main(argv):
+    
+    # testSpacy()
 
-    print("TESTING NLTK")
+    # test()
+    # printParseTree(doc)
+
+    # print("TESTING NLTK")
     # nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
 
-    testWordNet()
+    # testWordNet()
+
+    print("TESTING OPENNRE")
+    testOpenNRE()
+
 
 
 
