@@ -136,6 +136,34 @@ def bron_kerbosch(nodesList):
     print('Total cliques found:', total_cliques)
     return cliques
 
+# build graph nodes: <key, value> = <Entity name, Node>
+def buildGraph(doc, text):
+    nodes = {}
+    for ent in doc.ents:
+        n = Node(ent)
+        nodes[ent.text] = n
+
+    for ent1 in doc.ents:
+        n = nodes[ent1.text]
+        for ent2 in doc.ents:
+            if ent1 != ent2:
+                print(ent1, ent2, sep=" -> ")
+                relation = nre(text, ent1.text, ent2.text)
+                print()
+
+                n.neighbors.append(nodes[ent2.text])
+                n.addWeightedEdge(nodes[ent2.text], relation[0], relation[1])
+    
+    return nodes
+
+def printGraph(nodes):
+    for key, val in nodes.items():
+        print('Node:', key)
+        for neighbor in val.neighbors:
+            print('Neighbor:', neighbor)
+        for edge in val.weightedEdges:
+            print('Edge:', edge.src, edge.dst, edge.relation, edge.weight)
+
 # testSpacy()
 # printParseTree(doc)
 
@@ -149,47 +177,24 @@ def main(argv):
     print("loading " + argv[0])
 
     # texts = loadFile(argv[0])
-    texts = ['Rami Eid is studying at Stony Brook University in New York']
+    # debug
+    texts = ['Rami Eid is studying at Stony Brook University in New York.', 'Alice and Bob are CEOs at Inc. Corp. and Biz. Corp. respectively.']
 
     nlp = spacy.load("en_core_web_sm")
     for idx, doc in enumerate(nlp.pipe(texts, disable=["tagger", "parser"])):
-        # Do something with the doc here
-        #print("Tokens:", [token.text for token in doc])
         print("Named Entities:", [(ent.text, ent.label_) for ent in doc.ents])
-        print()
 
         # build graph nodes: <key, value> = <Entity name, Node>
-        nodes = {}
-        for ent in doc.ents:
-            n = Node(ent)
-            nodes[ent.text] = n
-
-        for ent1 in doc.ents:
-            n = nodes[ent1.text]
-
-            for ent2 in doc.ents:
-                if ent1 != ent2:
-                    print(ent1, ent2, sep=" *** ")
-                    relation = nre(texts[idx], ent1.text, ent2.text)
-                    print()
-
-                    # build graph
-                    n.neighbors.append(nodes[ent2.text])
-                    n.addWeightedEdge(nodes[ent2.text], relation[0], relation[1])
+        nodes = buildGraph(doc, texts[idx])
 
         # verifying graph
-        print("Graph: ")
-        for key, val in nodes.items():
-            print('Node:', key)
-            for neighbor in val.neighbors:
-                print('Neighbor:', neighbor)
-            for edge in val.weightedEdges:
-                print('Edge:', edge.src, edge.dst, edge.relation, edge.weight)
+        print("Graph:")
+        printGraph(nodes)
 
-        print("BRON-KERBOSCH")
         # Find maximal cliques and clique weights
+        print("BRON-KERBOSCH")
         cliques = bron_kerbosch(list(nodes.values()))
-        print("cliques:",cliques)
+        print("cliques:", cliques)
 
         # if the clique contains certain types of relations, then we fill them into the complex relation / template
         workTemplates = []
@@ -197,15 +202,13 @@ def main(argv):
             for node in clique:
                 for edge in node.weightedEdges:
                     if edge.dst in clique:
-                        if edge.relation == 'work location':
-                            # make new WORK template
+                        if edge.relation in ['work location', 'owned by']:
                             work = Work()
 
                             # fill in the PERSON field of the WORK template
                             if edge.src.entity.label_ == 'PERSON':
                                 work.person = edge.src.name
-
-                            # other fields...
+                            # fill in other fields
 
                             workTemplates.append(work)
 
