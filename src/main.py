@@ -35,6 +35,8 @@ def printParseTree(doc):
             [child for child in token.children])
 
 def testWordNet():
+    # nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
+
     syn = list()
     ant = list()
 
@@ -136,8 +138,7 @@ def bron_kerbosch(nodesList):
     print('Total cliques found:', total_cliques)
     return cliques
 
-# build graph nodes: <key, value> = <Entity name, Node>
-def buildGraph(doc, text):
+def buildEntityGraph(doc, text):
     nodes = {}
     for ent in doc.ents:
         n = Node(ent)
@@ -280,13 +281,6 @@ def tryAddPartTemplate(edge, partTemplates):
 
 
 
-
-
-# printParseTree(doc)
-
-# print("TESTING NLTK")
-# nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
-# testWordNet()
 def main(argv):
     if len(sys.argv) < 2:
         print("pass filename")
@@ -305,8 +299,8 @@ def main(argv):
     for idx, doc in enumerate(nlp.pipe(texts, disable=["tagger", "parser"])):
         print("Named Entities:", [(ent.text, ent.label_) for ent in doc.ents])
 
-        # build graph nodes: <key, value> = <Entity name, Node>
-        nodes = buildGraph(doc, texts[idx])
+        # Represent entity graph as dictionary: <Entity name, Node>
+        nodes = buildEntityGraph(doc, texts[idx])
 
         # verifying graph
         print("Graph:")
@@ -327,9 +321,7 @@ def main(argv):
                     if edge.dst in clique:
                         tryAddWorkTemplate(edge, workTemplates)
                         tryAddPartTemplate(edge, partTemplates)
-
-                        # if edge.relation == 'headquarters location':
-                            # make new PART template
+                        #tryAddBuyTemplate(edge, partTemplates)
 
         # verifying template filling
         for work in workTemplates:
