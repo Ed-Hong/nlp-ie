@@ -164,7 +164,124 @@ def printGraph(nodes):
         for edge in val.weightedEdges:
             print('Edge:', edge.src, edge.dst, edge.relation, edge.weight)
 
-# testSpacy()
+def addIgnoreDuplicate(template, templateList):
+    if template not in templateList: 
+        templateList.append(template)
+
+def tryAddWorkTemplate(edge, workTemplates):
+    template = Work()
+    if edge.relation == 'work location':
+        if edge.src.entity.label_ == 'PERSON':
+            template.person = edge.src.name
+        if edge.dst.entity.label_ == 'ORG':
+            template.org = edge.dst.name
+        if edge.dst.entity.label_ == 'GPE':
+            template.location = edge.dst.name
+        workTemplates.append(template)
+    
+    if edge.relation in ['field of work', 'position held']:
+        if edge.src.entity.label_ == 'PERSON':
+            template.person = edge.src.name
+            template.title = edge.dst.name
+        workTemplates.append(template)
+
+    if edge.relation == 'head of government':
+        if edge.src.entity.label_ == 'PERSON':
+            template.person = edge.src.name
+            template.title = 'head of government'
+        if edge.dst.entity.label_ == 'ORG':
+            template.org = edge.dst.name
+        if edge.dst.entity.label_ == 'GPE':
+            template.location = edge.dst.name
+        workTemplates.append(template)
+
+    if edge.relation == 'owned by':
+        if edge.dst.entity.label_ == 'PERSON':
+            template.person = edge.dst.name
+            template.title = 'owner'
+        if edge.src.entity.label_ == 'ORG':
+            template.org = edge.src.name
+        workTemplates.append(template)
+
+    if edge.relation == 'architect':
+        if edge.src.entity.label_ == 'PERSON':
+            template.person = edge.src.name
+            template.title = 'architect'
+        workTemplates.append(template)
+
+    if edge.relation == 'director':
+        if edge.src.entity.label_ == 'PERSON':
+            template.person = edge.src.name
+            template.title = 'director'
+        workTemplates.append(template)
+
+    # inferring that the place of residence is the same as work location
+    if edge.relation == 'residence':
+        if edge.src.entity.label_ == 'PERSON':
+            prevTemplates = [t for t in workTemplates if t.person == edge.src.name and not t.location]
+            for prevTemp in prevTemplates:
+                prevTemp.location = edge.dst.name
+
+def tryAddPartTemplate(edge, partTemplates):
+    template = Part()
+    if edge.relation == 'contains administrative territorial entity':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.whole = edge.src.name
+            template.part = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'has part':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.whole = edge.src.name
+            template.part = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'located on terrain feature':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'country':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'location':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'located in the administrative territorial entity':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'part of':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'located in or next to body of water':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+    if edge.relation == 'member of':
+        if edge.src.entity.label_ in ['FAC', 'GPE', 'LOC'] and edge.dst.entity.label_ in ['FAC', 'GPE', 'LOC']:
+            template.part = edge.src.name
+            template.whole = edge.dst.name
+            addIgnoreDuplicate(template, partTemplates)
+
+
+
+
+
 # printParseTree(doc)
 
 # print("TESTING NLTK")
@@ -178,7 +295,11 @@ def main(argv):
 
     # texts = loadFile(argv[0])
     # debug
-    texts = ['Rami Eid is studying at Stony Brook University in New York.', 'Alice and Bob are CEOs at Inc. Corp. and Biz. Corp. respectively.']
+    # texts = ['Rami Eid is studying at Stony Brook University in New York.',
+    #          'Alice and Bob are CEOs at Inc. Corp. and Biz. Corp. respectively.',
+    #          'Blounts Creek is a small unincorporated rural community in Beaufort County, North Carolina, United States, near a creek with the same name.']
+
+    texts = ['Blounts Creek is a small unincorporated rural community in Beaufort County, North Carolina, United States, near a creek with the same name.']
 
     nlp = spacy.load("en_core_web_sm")
     for idx, doc in enumerate(nlp.pipe(texts, disable=["tagger", "parser"])):
@@ -198,27 +319,23 @@ def main(argv):
 
         # if the clique contains certain types of relations, then we fill them into the complex relation / template
         workTemplates = []
+        partTemplates = []
+
         for clique in cliques:
             for node in clique:
                 for edge in node.weightedEdges:
                     if edge.dst in clique:
-                        if edge.relation in ['work location', 'owned by']:
-                            work = Work()
-
-                            # fill in the PERSON field of the WORK template
-                            if edge.src.entity.label_ == 'PERSON':
-                                work.person = edge.src.name
-                            # fill in other fields
-
-                            workTemplates.append(work)
-
+                        tryAddWorkTemplate(edge, workTemplates)
+                        tryAddPartTemplate(edge, partTemplates)
 
                         # if edge.relation == 'headquarters location':
                             # make new PART template
 
         # verifying template filling
         for work in workTemplates:
-            print('Work:', work.person, work.org, work.title, work.location)
+            print('Work:', work.person, work.org, work.title, work.location, sep=', ')
+        for part in partTemplates:
+            print(part.part, part.whole,sep=' part of ')
 
 if __name__ == '__main__':
     main(sys.argv[1:])
