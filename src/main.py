@@ -1,23 +1,27 @@
+import sys, json
+import jsons
 import os
-import sys
 import spacy
 import nltk
 import opennre
+import torch
 
+from opennre import encoder, model, framework
 from nltk.corpus import wordnet
 from util import loadFile
 from node import Node, Edge
-from template import Buy, Work, Part
+from template import Buy, Work, Part, Output, Extraction
 
-def testOpenNRE():
-    model = opennre.get_model('wiki80_cnn_softmax')
-    sentence = 'He was the son of Máel Dúin mac Máele Fithrich, and grandson of the high king Áed Uaridnach (died 612).'
-
-    print(sentence.find('Máel Dúin mac Máele Fithrich'))
-    print(model.infer({'text': sentence, 'h': {'pos': (18, 46)}, 't': {'pos': (78, 91)}}))
+def getModel():
+    rel2id = json.load(open('../data/dataset/wiki80/wiki80_rel2id.json'))
+    sentence_encoder = encoder.BERTEncoder(max_length=88, pretrain_path='../data/pretrain/bert-base-uncased')
+    m = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+    m.load_state_dict(torch.load('ckpt/wiki80_bert_softmax.pth.tar', map_location='cpu')['state_dict'])
+    return m
 
 def nre(text, head, tail):
     model = opennre.get_model('wiki80_bert_softmax')
+    #model = getModel()
 
     hStart = text.find(head)
     hEnd = hStart + len(head)
@@ -34,48 +38,28 @@ def printParseTree(doc):
         print(token.text, token.dep_, token.head.text, token.head.pos_,
             [child for child in token.children])
 
-def testWordNet():
+def wordNet(word):
     # nltk.download('wordnet') # Installs WordNet to /Users/{user}/nltk_data
 
-    syn = list()
-    ant = list()
+    for synset in wordnet.synsets(word):
+        print('Hypernyms of',word)
+        print(synset.hypernyms())
 
-    for synset in wordnet.synsets("Worse"):
-        for lemma in synset.lemmas():
-            syn.append(lemma.name())    #add the synonyms
-            if lemma.antonyms():    #When antonyms are available, add them into the list
-                ant.append(lemma.antonyms()[0].name())
+        print('Hyponyms of',word)
+        print(synset.hyponyms())
 
-    print('Synonyms: ' + str(syn))
-    print('Antonyms: ' + str(ant))
+        print('Meronyms of',word)
+        print(synset.part_meronyms())
+        print(synset.substance_meronyms())
 
-    print('Hypernyms of car: ')
-    print(wordnet.synset('car.n.01').hypernyms())
+        print('Holonyms of',word)
+        print(synset.part_holonyms())
+        print(synset.substance_holonyms())
 
-    print('Hyponyms of car: ')
-    print(wordnet.synset('car.n.01').hyponyms())
 
-    print('Meronyms of car: ')
-    print(wordnet.synset('car.n.01').member_holonyms())
-    print(wordnet.synset('car.n.01').part_meronyms())
-    print(wordnet.synset('car.n.01').substance_meronyms())
-
-    print('Holonyms: ')
-    print(wordnet.synset('atom.n.01').part_holonyms())
-    print(wordnet.synset('hydrogen.n.01').substance_holonyms())
-    print(wordnet.synset('cat.n.01').member_holonyms())
-
-def testSpacy():
+def task1(text):
     # Load English tokenizer, tagger, parser, NER and word vectors
     nlp = spacy.load("en_core_web_sm")
-
-    # Process whole documents
-    text = ("When Sebastian Thrun started working on self-driving cars at "
-            "Google in 2007, few people outside of the company took him "
-            "seriously. “I can tell you very senior CEOs of major American "
-            "car companies would shake my hand and turn away because I wasn’t "
-            "worth talking to,” said Thrun, in an interview with Recode earlier "
-            "this week.")
     doc = nlp(text)
 
     print("Sentences:", [sent.text for sent in doc.sents])
@@ -83,14 +67,20 @@ def testSpacy():
     print("Lemmas:", [token.lemma_ for token in doc])
     print("POS:", [token.pos_ for token in doc])
     print("Tags:", [token.tag_ for token in doc])
-
     print("Noun phrases:", [chunk.text for chunk in doc.noun_chunks])
     print("Verbs:", [token.lemma_ for token in doc if token.pos_ == "VERB"])
     print("Named Entities:", [ent.text for ent in doc.ents])
 
-    # Find named entities, phrases and concepts
+    # Named entities and their type
     for entity in doc.ents:
         print(entity.text, entity.label_)
+
+    # Using wordNet to extract Hypernyms, Hyponyms, etc
+    for token in doc:
+        wordNet(token.text)
+
+    # Parse Tree
+    printParseTree(doc)
 
 def bron_kerbosch(nodesList):
     cliques = []
@@ -113,7 +103,7 @@ def bron_kerbosch(nodesList):
             cliqueWeight = clique_weight(potential_clique)
             print('clique weight: ', cliqueWeight)
 
-            if cliqueWeight > 0.50:
+            if cliqueWeight > 0.40:
                 cliques.append(potential_clique)
 
             return 1
@@ -144,12 +134,12 @@ def buildEntityGraph(doc, text):
         n = Node(ent)
         nodes[ent.text] = n
 
-    for ent1 in doc.ents:
-        n = nodes[ent1.text]
+    for ent1 in nodes:
+        n = nodes[ent1]
         for ent2 in doc.ents:
-            if ent1 != ent2:
+            if ent1 != ent2.text:
                 print(ent1, ent2, sep=" -> ")
-                relation = nre(text, ent1.text, ent2.text)
+                relation = nre(text, ent1, ent2.text)
                 print()
 
                 n.neighbors.append(nodes[ent2.text])
@@ -171,51 +161,68 @@ def addIgnoreDuplicate(template, templateList):
 
 def tryAddWorkTemplate(edge, workTemplates):
     template = Work()
+    nonNull = False
     if edge.relation == 'work location':
         if edge.src.entity.label_ == 'PERSON':
             template.person = edge.src.name
+            nonNull = True
         if edge.dst.entity.label_ == 'ORG':
             template.org = edge.dst.name
+            nonNull = True
         if edge.dst.entity.label_ == 'GPE':
             template.location = edge.dst.name
-        workTemplates.append(template)
+            nonNull = True
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
     
     if edge.relation in ['field of work', 'position held']:
         if edge.src.entity.label_ == 'PERSON':
             template.person = edge.src.name
             template.title = edge.dst.name
-        workTemplates.append(template)
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
 
     if edge.relation == 'head of government':
         if edge.src.entity.label_ == 'PERSON':
             template.person = edge.src.name
             template.title = 'head of government'
+            nonNull = True
         if edge.dst.entity.label_ == 'ORG':
             template.org = edge.dst.name
+            nonNull = True
         if edge.dst.entity.label_ == 'GPE':
             template.location = edge.dst.name
-        workTemplates.append(template)
+            nonNull = True
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
 
     if edge.relation == 'owned by':
         if edge.dst.entity.label_ == 'PERSON':
             template.person = edge.dst.name
             template.title = 'owner'
+            nonNull = True
         if edge.src.entity.label_ == 'ORG':
             template.org = edge.src.name
-        workTemplates.append(template)
+            nonNull = True
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
 
     if edge.relation == 'architect':
         if edge.src.entity.label_ == 'PERSON':
             template.person = edge.src.name
             template.title = 'architect'
-        workTemplates.append(template)
-
+            nonNull = True
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
+            
     if edge.relation == 'director':
         if edge.src.entity.label_ == 'PERSON':
             template.person = edge.src.name
             template.title = 'director'
-        workTemplates.append(template)
-
+            nonNull = True
+        if nonNull:
+            addIgnoreDuplicate(template, workTemplates)
+            
     # inferring that the place of residence is the same as work location
     if edge.relation == 'residence':
         if edge.src.entity.label_ == 'PERSON':
@@ -287,13 +294,13 @@ def main(argv):
         sys.exit(2)
     print("loading " + argv[0])
 
-    # texts = loadFile(argv[0])
+    texts = loadFile(argv[0])
     # debug
     # texts = ['Rami Eid is studying at Stony Brook University in New York.',
-    #          'Alice and Bob are CEOs at Inc. Corp. and Biz. Corp. respectively.',
     #          'Blounts Creek is a small unincorporated rural community in Beaufort County, North Carolina, United States, near a creek with the same name.']
 
-    texts = ['Blounts Creek is a small unincorporated rural community in Beaufort County, North Carolina, United States, near a creek with the same name.']
+    # task 1
+    #task1(texts[0])
 
     nlp = spacy.load("en_core_web_sm")
     for idx, doc in enumerate(nlp.pipe(texts, disable=["tagger", "parser"])):
@@ -308,6 +315,7 @@ def main(argv):
 
         # Find maximal cliques and clique weights
         print("BRON-KERBOSCH")
+        sys.setrecursionlimit(2000)
         cliques = bron_kerbosch(list(nodes.values()))
         print("cliques:", cliques)
 
@@ -326,8 +334,38 @@ def main(argv):
         # verifying template filling
         for work in workTemplates:
             print('Work:', work.person, work.org, work.title, work.location, sep=', ')
+
         for part in partTemplates:
             print(part.part, part.whole,sep=' part of ')
+
+        # writing templates to json output
+        out = []
+        for template in workTemplates:
+            arguments = {}
+            arguments['1'] = template.person or ""
+            arguments['2'] = template.org or ""
+            arguments['3'] = template.title or ""
+            arguments['4'] = template.location or ""
+            
+            extraction = Extraction('WORK', [token.text for token in doc], arguments)
+            output = Output(argv[0], extraction)
+            out.append(output)
+
+        for template in partTemplates:
+            arguments = {}
+            arguments['1'] = template.part or ""
+            arguments['2'] = template.whole or ""
+            
+            extraction = Extraction('PART', [token.text for token in doc], arguments)
+            output = Output(argv[0], extraction)
+            out.append(output)
+
+        # Write new relations to data file
+        jsons.suppress_warnings()
+        for output in out:
+            with open(str(argv[0])[:-4] + '.json', 'a') as the_file:
+                the_file.write(json.dumps(jsons.dump(output)) + '\n')
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])

@@ -22,7 +22,7 @@ rel2id = json.load(open(os.path.join(root_path, 'dataset/wiki80/wiki80_rel2id.js
 
 # Create BERT encoder
 sentence_encoder = opennre.encoder.BERTEncoder(
-    max_length=80, 
+    max_length=88, 
     pretrain_path=os.path.join(root_path, 'pretrain/bert-base-uncased'),
     mask_entity=args.mask_entity
 )
@@ -37,7 +37,7 @@ framework = opennre.framework.SentenceRE(
     test_path=os.path.join(root_path, 'dataset/wiki80/wiki80_val.txt'),
     model=model,
     ckpt=ckpt,
-    batch_size=64, # Modify the batch size w.r.t. your device
+    batch_size=64,
     max_epoch=10,
     lr=2e-5,
     opt='adamw'
@@ -46,9 +46,9 @@ framework = opennre.framework.SentenceRE(
 # Train model
 framework.train_model()
 
-# Test model
-framework.load_state_dict(torch.load(ckpt)['state_dict'])
-result = framework.eval_model(framework.test_loader)
+# Test model - takes as long as training, so commenting out to save time
+# framework.load_state_dict(torch.load(ckpt)['state_dict'])
+# result = framework.eval_model(framework.test_loader)
 
-# Evaluate model results
-print('Accuracy on test set: {}'.format(result['acc']))
+# # Evaluate model results
+# print('Accuracy on test set: {}'.format(result['acc']))

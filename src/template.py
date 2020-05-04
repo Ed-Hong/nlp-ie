@@ -44,3 +44,20 @@ class Part(object):
             return self.__dict__ == other.__dict__
         else:
             return False
+
+class Output(object):
+    def __init__(self, document, extraction):
+        self.document = document
+        self.extraction = extraction
+    
+    def __repr__(self):
+        return self.document, self.extraction
+
+class Extraction(object):
+    def __init__(self, template, sentences, arguments):
+        self.template = template
+        self.sentences = sentences
+        self.arguments = arguments
+
+    def __repr__(self):
+        return self.template, self.sentences, self.arguments

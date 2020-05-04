@@ -8,10 +8,11 @@ from util import loadFile
 maxId = 0
 
 class Relation(object):
-    def __init__(self, tokens, head, tail):
+    def __init__(self, tokens, head, tail, type):
         self.token = tokens
         self.h = head
         self.t = tail
+        self.relation = type
 
     def __repr__(self):
         return self.token, self.h, self.t
@@ -34,9 +35,11 @@ def getMaxId(ids):
 
     return max
 
+# loads Wiki80 dataset
 def loadDataSet():
+    print('Loading dataset...')
     ids = {}
-    for entry in os.scandir('./'):
+    for entry in os.scandir('./'):  #debug: change this back to the wiki80 filepath
         if entry.path.endswith('.txt') and entry.is_file():
             lines = loadFile(entry.path)
             for line in lines:
@@ -58,9 +61,11 @@ def addRelations(tokens, ids, newRelations):
         if relation == 'no':
             break
         
-        if relation == 'buyer of':
-            addRelation('buyer of', tokens, ids, newRelations)
-
+        rel2id = json.load(open(os.path.join('../data/dataset/wiki80/wiki80_rel2id.json')))
+        if relation in rel2id:
+            addRelation(relation, tokens, ids, newRelations)
+        else:
+            print('Did not match any relation types')
 
 def addRelation(type, tokens, ids, newRelations):
     global maxId
@@ -91,7 +96,7 @@ def addRelation(type, tokens, ids, newRelations):
         maxId = maxId + 1
         ids[tail.name] = tail.id
 
-    rel = Relation(tokens, head, tail)
+    rel = Relation(tokens, head, tail, type)
     newRelations.append(rel)
 
 
@@ -104,24 +109,25 @@ def main(argv):
     newRelations = []
     nlp = spacy.load("en_core_web_sm")
 
-    for entry in os.scandir('../temp/'):
+    # Processes all wikipedia articles and prompts user to annotate for relations
+    for entry in os.scandir('../wikipediaArticles/'):
         if entry.path.endswith('.txt') and entry.is_file():
             lines = loadFile(entry.path)
             for line in lines:
                 doc = nlp(line)
 
-                for sentence in doc.sents:
-                    for idx,token in enumerate(sentence):
-                        print(idx, token, sep=':')
-                    
-                    print(sentence)
-                    tokens = [token.text for token in doc]
-                    addRelations(tokens, ids, newRelations)
+                for idx,token in enumerate(doc):
+                    print(idx, token, sep='_', end=' ')
+                
+                print('\n')
+                print(doc)
+                tokens = [token.text for token in doc]
+                addRelations(tokens, ids, newRelations)
 
-                    # Write new relations to data file
-                    for relation in newRelations:
-                        with open('newRelations.txt', 'a') as the_file:
-                            the_file.write(json.dumps(jsons.dump(relation)) + '\n')
+                # Write new relations to data file
+                for relation in newRelations:
+                    with open('newRelations.txt', 'a') as the_file:
+                        the_file.write(json.dumps(jsons.dump(relation)) + '\n')
     
                 
 
